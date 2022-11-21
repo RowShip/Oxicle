@@ -7,7 +7,7 @@ import "./openzeppelin/governance/extensions/GovernorVotes.sol";
 import "./openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "./openzeppelin/governance/extensions/GovernorTimelockControl.sol";
 import "./openzeppelin/governance/extensions/GovernorSettings.sol";
-import "../lib/chainlink/contracts/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
+import "chainlink/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
 
 
 interface IVault{
