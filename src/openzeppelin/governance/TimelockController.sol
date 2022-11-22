@@ -114,11 +114,11 @@ contract TimelockController is AccessControl, IERC721Receiver, IERC1155Receiver 
         }
         _;
     }
-
+    // TODO: is this correct?
     /**
      * @dev Contract might receive/hold ETH as part of the maintenance process.
      */
-    receive() external payable {}
+    // receive() external virtual payable {}
 
     /**
      * @dev See {IERC165-supportsInterface}.

@@ -14,8 +14,9 @@ import "../utils/IVotes.sol";
 abstract contract GovernorVotes is Governor {
     IVotes public immutable token;
 
-    constructor(IVotes tokenAddress) {
-        token = tokenAddress;
+// TODO: Is this correct?
+    constructor() {
+        token = IVotes(address(this));
     }
 
     /**

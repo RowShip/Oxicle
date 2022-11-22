@@ -7,11 +7,11 @@ import "./openzeppelin/governance/extensions/GovernorVotes.sol";
 import "./openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "./openzeppelin/governance/extensions/GovernorTimelockControl.sol";
 import "./openzeppelin/governance/extensions/GovernorSettings.sol";
-import "chainlink/src/v0.8/interfaces/KeeperCompatibleInterface.sol";
+import "./chainlink/KeeperCompatibleInterface.sol";
 
 
 interface IVault{
-  function getCurrentStage(uint256 _campaignId) external view returns(uint256);
+  function getCurrentStage(address _nftContractAddress) external view returns(uint256);
 }
 
 contract GovernorContract is
@@ -23,16 +23,14 @@ contract GovernorContract is
   GovernorVotesQuorumFraction,
   GovernorTimelockControl
 {
-    uint256 public campaignId;
+    address public nftContractAddress;
     IVault public vault; 
 
   constructor(
-    IVotes _token,
-    TimelockController _timelock,
     uint256 _quorumPercentage, 
     uint256 _votingPeriod,
     uint256 _votingDelay,
-    uint256 _campaignId,
+    address _nftContractAddress,
     address _vault
   )
     Governor("GovernorContract")
@@ -41,11 +39,11 @@ contract GovernorContract is
       _votingPeriod,  
       0 // proposal threshold
     )
-    GovernorVotes(_token)
+    GovernorVotes()
     GovernorVotesQuorumFraction(_quorumPercentage)
-    GovernorTimelockControl(_timelock)
+    GovernorTimelockControl()
   {
-    campaignId = _campaignId;
+    nftContractAddress = _nftContractAddress;
     vault = IVault(_vault);
   }
 
@@ -69,7 +67,7 @@ contract GovernorContract is
     bool upkeepNeeded,
     bytes memory performData
   ){
-    uint256 currStage = vault.getCurrentStage(campaignId);
+    uint256 currStage = vault.getCurrentStage(nftContractAddress);
     Proposal memory thisProposal = allProposals[currStage];
     return(uint256(state(thisProposal.propId)) == 5, bytes(""));
   }
@@ -77,7 +75,7 @@ contract GovernorContract is
   function performUpkeep(
   bytes calldata performData
 ) external override{
-  uint256 currStage = vault.getCurrentStage(campaignId);
+  uint256 currStage = vault.getCurrentStage(nftContractAddress);
   Proposal memory thisProposal = allProposals[currStage];
   bytes32 descriptionHash = keccak256(abi.encodePacked(thisProposal.description));
   execute(thisProposal.targets,thisProposal.values,thisProposal.calldatas,descriptionHash);
@@ -144,7 +142,7 @@ contract GovernorContract is
       calldatas,
       description
     );
-    uint256 currStage = vault.getCurrentStage(campaignId);
+    uint256 currStage = vault.getCurrentStage(nftContractAddress);
     allProposals[currStage] = thisProposal;
     return propId;
   }
@@ -189,6 +187,7 @@ contract GovernorContract is
   function supportsInterface(bytes4 interfaceId)
     public
     view
+    virtual
     override(Governor, GovernorTimelockControl)
     returns (bool)
   {

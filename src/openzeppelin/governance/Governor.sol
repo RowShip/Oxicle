@@ -78,13 +78,13 @@ abstract contract Governor is Context, ERC165, EIP712_NoConst, IGovernor, IERC72
     constructor(string memory name_) {
         _name = name_;
     }
-
+    // TODO: is this correct?
     /**
      * @dev Function to receive ETH that will be handled by the governor (disabled if executor is a third party contract)
      */
-    receive() external payable virtual {
-        require(_executor() == address(this));
-    }
+    // receive() external payable virtual {
+    //     require(_executor() == address(this));
+    // }
 
     /**
      * @dev See {IERC165-supportsInterface}.

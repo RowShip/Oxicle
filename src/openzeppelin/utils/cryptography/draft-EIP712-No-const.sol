@@ -54,7 +54,12 @@ abstract contract EIP712_NoConst {
     /**
      * @dev Returns the domain separator for the current chain.
      */
-    function _domainSeparatorV4() internal view returns (bytes32) {
+    // TODO: I've override visibility modifiers of these functions
+    //  _domainSeparatorV4
+    // _hashTypedDataV4
+    // _buildDomainSeparator
+    // from internal to public
+    function _domainSeparatorV4() public virtual view returns (bytes32) {
         if (address(this) == _CACHED_THIS && block.chainid == _CACHED_CHAIN_ID) {
             return _CACHED_DOMAIN_SEPARATOR;
         } else {
@@ -66,7 +71,7 @@ abstract contract EIP712_NoConst {
         bytes32 typeHash,
         bytes32 nameHash,
         bytes32 versionHash
-    ) private view returns (bytes32) {
+    ) public virtual view returns (bytes32) {
         return keccak256(abi.encode(typeHash, nameHash, versionHash, block.chainid, address(this)));
     }
 
@@ -85,7 +90,7 @@ abstract contract EIP712_NoConst {
      * address signer = ECDSA.recover(digest, signature);
      * ```
      */
-    function _hashTypedDataV4(bytes32 structHash) internal view virtual returns (bytes32) {
+    function _hashTypedDataV4(bytes32 structHash) public view virtual returns (bytes32) {
         return ECDSA.toTypedDataHash(_domainSeparatorV4(), structHash);
     }
 }

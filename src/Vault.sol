@@ -2,40 +2,47 @@
 pragma solidity ^0.8.9;
 
 import "./openzeppelin/token/ERC20/IERC20.sol";
+import "./openzeppelin/token/ERC721/IERC721.sol";
 
-//For creating a Gnosis Multisig Wallet
+// For creating a Gnosis Multisig Wallet
 import "safe-contracts/proxies/GnosisSafeProxyFactory.sol";
 
-import "./DeployNft.sol";
 import "./CampaignFactory.sol";
+
+// For Testing
+import "forge-std/console.sol";
 
 
 contract Vault{
-    uint256 campaignCount;
-    //TODO: Change network accordingly
-    //USDC Mainnet
-    IERC20 public USDC = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
-    //USDC Goerli
-    // IERC20 public USDC = IERC20(0xA2025B15a1757311bfD68cb14eaeFCc237AF5b43);
+    // TODO: Change network accordingly
+    // USDC Mainnet
+    IERC20 public USDCContract = IERC20(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+    // USDC Goerli
+    // IERC20 public USDCContract = IERC20(0xA2025B15a1757311bfD68cb14eaeFCc237AF5b43);
     
     struct Campaign {
         address nftCreator;
-        NftContract nft;
-        GovernanceToken govToken;
-        TimeLock timelock;
-        GovernorContract governor;
+        address nftContractAddress;
+        CampaignFactory campaign;
         address multisig;
         uint256 currentStage;
         uint256 totalStages;
+        uint128 nftsMinted;
         uint256[] fundsPerStage;
         uint256 currentFunds;
         uint256 totalFundsRequired;
         bool campaignRemoved;
     }
-    mapping(uint256 => Campaign) public allCampaigns;
+
+    // allCampaigns maps from the nft contract address to the campaign structure
+    mapping(address => Campaign) public allCampaigns;
+
+    // address is timelock which is created when a campaign is created. And it is set to true when we create this timelock. 
+    // This is done so that we restrict access to any others other than the timelocks to call functions like releaseFunds, removeCampaign etc
     mapping(address => bool) public timelocks;
-    mapping(address => bool) public nftContracts;
-    
+
+    // This mapping is to track who all have claimed their tokens back after the campaign removal
+    // The mapping is from - whom(address) => nftcontract address => true/false 
     mapping(address => mapping(address => bool)) public fundsClaimedAfterCampaignRemoval;
 
     //for Gnosis
@@ -46,14 +53,6 @@ contract Vault{
     struct ForGovToken {
         string _govTokenName;
         string _govTokenSymbol;
-    }
-
-    struct ForNft{
-        string _nftName;
-        string _nftSymbol;
-        uint256 _nftMaxSupply;
-        uint256 _priceInUSDC;
-        string _setBaseURI;
     }
 
     struct ForGovernor{
@@ -68,85 +67,40 @@ contract Vault{
     }
 
     constructor() {
-        proxyFactory = GnosisSafeProxyFactory(0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2);
+        proxyFactory = GnosisSafeProxyFactory (0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2);
         masterCopyAddress = 0x3E5c63644E683549055b9Be8653de26E0B4CD36E;
     }
 
-    // Precompute the contract address of Timelock and GovernanceToken contract
-    // TODO: should precomuping feature be here or in a library?
-    function precomputeAddressOfTimelock() private view returns(address) {
-        bytes memory creationCode = type(TimeLock).creationCode;
-        // TODO: pass in correct arguements here for TimeLock instead of 1 ,[] ,[]
-        bytes memory bytecode = abi.encodePacked(creationCode, abi.encode(1, [], []));
 
-        // TODO: possibly change salt to other number. address(this) is address of deployer
-        bytes32 hash = keccak256(
-            abi.encodePacked(
-                bytes1(0xff), address(this), 777, keccak256(bytecode)
-            )
-        );
-        return address(uint160(uint(hash)));
+    struct timelockContractArguments{
+        uint256 _minDelay;
+        address[] _proposers;
+        address[] _executors;
     }
 
-    function precomputeAddressOfGovernanceToken() private view returns(address) {
-        bytes memory creationCode = type(GovernanceToken).creationCode;
-        // TODO: pass in correct arguements here for GovernanceToken
-        bytes memory bytecode = abi.encodePacked(creationCode, abi.encode("SampleName", "SampleSymol"));
-
-        // TODO: possibly change salt to other number. address(this) is address of deployer
-        bytes32 hash = keccak256(
-            abi.encodePacked(
-                bytes1(0xff), address(this), 777, keccak256(bytecode)
-            )
-        );
-        return address(uint160(uint(hash)));
-    }
-
-
-    //setting up a new campaign
+    // setting up a new campaign
+    // This returns the campaign address. It is useful for testing.
     function setupCampaign(
-        ForGovToken calldata _govTok,
-        ForNft calldata _nftCont,
-        uint256 _minDelay,
+        address _nftContractAddress,
+        timelockContractArguments memory _timelockContractArguments,
         uint256 _totalStages,
         uint256[] calldata _fundsPerStage,
         uint256 _totalFundsRequired,
-        ForGovernor calldata _GovernorCont,
         MultiSig calldata _multisig
-        ) external {
+        ) external returns(address) {
         require(_fundsPerStage.length == _totalStages, "Error! FundsPerStage not matching the no of stages");
-        campaignCount++;
-        
-        //create and deploy Governance Token contract
-        // GovernanceToken newGovToken = DeployGovToken.createGovTokenContract(_govTok);
+        require(_totalStages > 0 && _totalFundsRequired > 0, "totalStages or TotalFundsRequired cannot be 0");
 
-        // //create and deploy Timelock contract
-        // TimeLock newTimelock = DeployTimelock.createTimelockContract(_minDelay);
-        // timelocks[address(newTimelock)] = true;
-    
-        // //create and deploy Governor Contract
-        // GovernorContract newGovernor = DeployGovernor.createGovernorContract(newGovToken, newTimelock, _GovernorCont, campaignCount, address(this));
-        
-        // TODO: pass the parameters passed in this function when declaring Campaign Factory
-        address timeLockContractAddress = precomputeAddressOfTimelock();
-        address governanceTokenContractAddress  = precomputeAddressOfGovernanceToken();
-
-        // TODO: Pass in correct arguments 
-        CampaignFactory newCampaign = CampaignFactory(
-            _minDelay,
-            [],
-            [],
-            governanceTokenContractAddress,
-            timeLockContractAddress,
-            0, 0, 0, 0, address(0)
+        // TODO: Remove hardcoded values
+        CampaignFactory newCampaign = new CampaignFactory(
+            _nftContractAddress,
+            _timelockContractArguments,
+            5, 10, 10, address(this)
         );
-
-        //create and deploy nft contract
-        NftContract newNftContract = DeployNft.createNftContract(campaignCount,_nftCont,address(this),address(newGovToken));
-        nftContracts[address(newNftContract)] = true;
+        // campaignFactory is the timelock itself
+        timelocks[address(newCampaign)] = true;
 
         //creating multisig
-        // TODO: 
         bytes memory initializer = abi.encodeWithSignature(
             "setup(address[],uint256,address,bytes,address,address,uint256,address)",
             _multisig._signatories,
@@ -159,70 +113,73 @@ contract Vault{
             address(0x0)
         );
         address newMultisig = address(proxyFactory.createProxy(masterCopyAddress, initializer));
-
-        // TODO: grant roles in timelock
-        newTimelock.grantRole(newTimelock.PROPOSER_ROLE(), address(newGovernor));
-        newTimelock.grantRole(newTimelock.EXECUTOR_ROLE(), address(0));
-        //Revoking role here
-        newTimelock.revokeRole(newTimelock.TIMELOCK_ADMIN_ROLE(), msg.sender);
-        //making nftContract the owner of GovernanceToken Contract
-        newGovToken.transferOwnership(address(newNftContract));
-        //making NftCreator the owner of nftContract
-        newNftContract.transferOwnership(msg.sender);
-
-        // TODO: Create new campaign using campaign factory
+        require(newMultisig != address(0), "Safe deployment failed");
+        
         //Storing this particular campaign
-        Campaign memory newCampaign = Campaign(
+        Campaign memory newCampaignStruct = Campaign(
             msg.sender,
-            newNftContract,
-            newGovToken,
-            newTimelock,
-            newGovernor,
+            _nftContractAddress,
+            newCampaign,
             newMultisig,
             1,
             _totalStages,
+            0,
             _fundsPerStage,
             0,
             _totalFundsRequired,
             false
         );
-        allCampaigns[campaignCount] = newCampaign;
+        allCampaigns[_nftContractAddress] = newCampaignStruct;
+        return address(newCampaign);
     }
 
-    function releaseFunds(uint256 _campaignId) external  {
-        require(timelocks[msg.sender] == true, "You are not authorized");
-        Campaign memory thisCampaign = allCampaigns[_campaignId];
-        USDC.transfer(thisCampaign.multisig, thisCampaign.fundsPerStage[thisCampaign.currentStage - 1]);
-        allCampaigns[_campaignId].currentStage++;
+    function getCampaign(address  _nftContractAddress) public view returns(Campaign memory){
+        return allCampaigns[_nftContractAddress];
     }
 
-    function removeCampaign(uint256 _campaignId) external {
+    function releaseFunds(address _nftContractAddress) external  {
         require(timelocks[msg.sender] == true, "You are not authorized");
-        allCampaigns[_campaignId].campaignRemoved = true;
+        Campaign memory thisCampaign = allCampaigns[_nftContractAddress];
+        USDCContract.transfer(thisCampaign.multisig, thisCampaign.fundsPerStage[thisCampaign.currentStage - 1]);
+        allCampaigns[_nftContractAddress].currentStage++;
+    }
+
+    function removeCampaign(address _nftContractAddress) external {
+        require(timelocks[msg.sender] == true, "You are not authorized");
+        allCampaigns[_nftContractAddress].campaignRemoved = true;
     }
 
     //to withdraw funds when the campaign is removed
-    function withdrawFundsAfterCampaignRemoval(address _nftContract) external {
-        NftContract nftContract = NftContract(_nftContract);
-        uint256 thisCampaignId = nftContract.campaignId();
+    function withdrawFundsAfterCampaignRemoval(address _nftContractAddress) external {
+        IERC721 nftContract = IERC721(_nftContractAddress);
         require(nftContract.balanceOf(msg.sender) > 0, "You are not Authorized");
-        require(allCampaigns[thisCampaignId].campaignRemoved == true, "the campaign is not removed yet");
-        require(fundsClaimedAfterCampaignRemoval[msg.sender][_nftContract] = false, "You have already claimed once");
-        fundsClaimedAfterCampaignRemoval[msg.sender][_nftContract] = true;
+        require(allCampaigns[_nftContractAddress].campaignRemoved == true, "the campaign is not removed yet");
+        require(fundsClaimedAfterCampaignRemoval[msg.sender][_nftContractAddress] = false, "You have already claimed once");
+        fundsClaimedAfterCampaignRemoval[msg.sender][_nftContractAddress] = true;
         uint256 totalNftsOwnedByUser = nftContract.balanceOf(msg.sender);
-        uint256 totalAmountInUSDC = allCampaigns[thisCampaignId].currentFunds;
-        uint256 withdrawAmount = (totalAmountInUSDC*totalNftsOwnedByUser)/nftContract.totalSupply();
-        USDC.transfer(msg.sender, withdrawAmount);
+        uint256 totalAmountInUSDC = allCampaigns[_nftContractAddress].currentFunds;
+        uint256 withdrawAmount = (totalAmountInUSDC*totalNftsOwnedByUser)/allCampaigns[_nftContractAddress].nftsMinted;
+        USDCContract.transfer(msg.sender, withdrawAmount);
     }
 
 
-    function getCurrentStage(uint256 _campaignId) external view returns(uint256){
-        return allCampaigns[_campaignId].currentStage;
+    function getCurrentStage(address _nftContractAddress) external view returns(uint256){
+        return allCampaigns[_nftContractAddress].currentStage;
     }
 
-    function setCurrentFunds(uint256 _campaignId, uint256 _amount) external{
-        require(nftContracts[msg.sender] == true, "You are not authorized");
-        allCampaigns[_campaignId].currentFunds += _amount;
+     function supplyFundsToCampaign(uint256 _amount) external{
+        require(msg.sender == allCampaigns[msg.sender].nftContractAddress, "You are not authorized");
+        allCampaigns[msg.sender].currentFunds += _amount;
+        // incrementing the no of minted nfts
+        allCampaigns[msg.sender].nftsMinted++;
+    }
+
+    function mintGovernanceTokens(address _to, uint256 _amount) external{
+        require(msg.sender == allCampaigns[msg.sender].nftContractAddress, "You are not authorized");
+        // mint some governance token to the sender
+        CampaignFactory campaignFactory = allCampaigns[msg.sender].campaign;
+        uint256 rate = _amount * 10 ** 12;
+        campaignFactory.mint(_to, rate);
     }
 
 }

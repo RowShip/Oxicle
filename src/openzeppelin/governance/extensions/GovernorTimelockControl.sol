@@ -35,8 +35,9 @@ abstract contract GovernorTimelockControl is IGovernorTimelock, Governor {
     /**
      * @dev Set the timelock.
      */
-    constructor(TimelockController timelockAddress) {
-        _updateTimelock(timelockAddress);
+     // TODO: Is this correct?
+    constructor() {
+        _updateTimelock(TimelockController(payable(address(this))));
     }
 
     /**
