@@ -19,6 +19,7 @@ contract NFTContract is ERC721, ForceSend {
     // The contract will just need to add the sendToVault modifier which forces the USDC to be sent from the user to the Vault on each mint
     // Since we are using USDC this nft contract address should be approved in the USDC contract by the user.
     // Approve(Nftcontractaddress, pricePerNft) can be done on the frontend.
+    // TODO: Need to find a way for the creator to forcefully implement the sendToVault modifier if they wish to join the Protocol\
     function safeMint() public sendToVault(pricePerNft) {
         uint256 tokenId = _tokenIdCounter.current();
         _tokenIdCounter.increment();
