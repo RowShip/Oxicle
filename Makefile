@@ -5,6 +5,7 @@
 # Install the Modules
 install :; 
 	forge install smartcontractkit/chainlink
+	forge install safe-global/safe-contracts
 
 deploy:
 	forge create StakeContract --private-key ${PRIVATE_KEY} # --rpc-url 
