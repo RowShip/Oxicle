@@ -6,6 +6,7 @@
 install :; 
 	forge install smartcontractkit/chainlink
 	forge install safe-global/safe-contracts
+	forge install foundry-rs/forge-std
 
 deploy:
 	forge create StakeContract --private-key ${PRIVATE_KEY} # --rpc-url 
