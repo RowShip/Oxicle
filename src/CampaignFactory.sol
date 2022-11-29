@@ -6,30 +6,29 @@ import "./Timelock.sol";
 import "./GovernorContract.sol";
 import "./Vault.sol";
 
-// For Testing 
+// TODO: For Testing. Remove after testing
 import "forge-std/console.sol";
 
 contract CampaignFactory is GovernanceToken ,TimeLock, GovernorContract {
 
     constructor(
+        // string memory _GovTokenName,
+        // string memory _GovTokenSymbol,
         address _nftContractAddress,
         Vault.timelockContractArguments memory _timelockContractArguments,
-        uint256 _quorumPercentage, 
-        uint256 _votingPeriod,
-        uint256 _votingDelay,
+        Vault.govTokenContractArguments memory _govTokenContractArguments,
+        Vault.governorContractArguments memory _governorContractArguments,
         address _vault
     ) 
         TimeLock(_timelockContractArguments)
         GovernorContract(
-            _quorumPercentage, 
-            _votingPeriod,
-            _votingDelay,
+            _governorContractArguments,
             _nftContractAddress,
             _vault
         )
-        GovernanceToken("", "")
+        GovernanceToken(_govTokenContractArguments._govTokenName, _govTokenContractArguments._govTokenSymbol)
     {
-        // TODO: grant roles in timelock.
+        // TODO: Need to check if this is correct
         grantRole(PROPOSER_ROLE, address(this));
         grantRole(EXECUTOR_ROLE, address(0));
         // //Revoking role here

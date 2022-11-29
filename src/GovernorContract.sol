@@ -8,6 +8,7 @@ import "./openzeppelin/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "./openzeppelin/governance/extensions/GovernorTimelockControl.sol";
 import "./openzeppelin/governance/extensions/GovernorSettings.sol";
 import "./chainlink/KeeperCompatibleInterface.sol";
+import "./Vault.sol";
 
 
 interface IVault{
@@ -27,20 +28,18 @@ contract GovernorContract is
     IVault public vault; 
 
   constructor(
-    uint256 _quorumPercentage, 
-    uint256 _votingPeriod,
-    uint256 _votingDelay,
+    Vault.governorContractArguments memory _governorContractArguments,
     address _nftContractAddress,
     address _vault
   )
     Governor("GovernorContract")
     GovernorSettings(
-      _votingDelay,
-      _votingPeriod,  
+      _governorContractArguments._votingDelay, 
+      _governorContractArguments._votingPeriod,
       0 // proposal threshold
     )
     GovernorVotes()
-    GovernorVotesQuorumFraction(_quorumPercentage)
+    GovernorVotesQuorumFraction(_governorContractArguments._quorumPercentage)
     GovernorTimelockControl()
   {
     nftContractAddress = _nftContractAddress;

@@ -20,7 +20,7 @@ contract VaultScript is Script {
         address[] memory signatories = new address[](2);
         signatories[0] = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
         signatories[1] = 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
-        Vault.MultiSig memory _multisig = Vault.MultiSig(signatories, 1);
+        Vault.multisigContractArguments memory _multisig = Vault.multisigContractArguments(signatories, 1);
 
         address[] memory proposer = new address[](1);
         proposer[0] = address(0);
@@ -33,9 +33,14 @@ contract VaultScript is Script {
         fundsPerStage[0] = 200000;
         fundsPerStage[0] = 500000;
 
+        Vault.governorContractArguments memory _governorContractArguments = Vault.governorContractArguments(5, 10, 10);
+        Vault.govTokenContractArguments memory _govTokenContractArguments = Vault.govTokenContractArguments("","");
+
         vault.setupCampaign(
             address(nftContract),
             newStruct,
+            _governorContractArguments,
+            _govTokenContractArguments,
             3,
             fundsPerStage,
             1000000,

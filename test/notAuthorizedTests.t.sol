@@ -10,15 +10,18 @@ contract TestNotAllowed is Helpers {
         vault = new Vault();
     }
 
-    function testUnauthorizedFunctionsWithRandomAccount(Vault.timelockContractArguments memory newStruct) public{
+    function testUnauthorizedFunctionsWithRandomAccount(Vault.timelockContractArguments memory newStruct, Vault.govTokenContractArguments memory _govTokenContractArguments) public{
         (NFTContract nftContract, address campaignAddress) = createCampaign(
             0x8C8D7C46219D9205f056f28fee5950aD564d7465,
             vault,
-            newStruct
+            newStruct,
+            _govTokenContractArguments
         );
         vm.startPrank(0x1B7BAa734C00298b9429b518D621753Bb0f6efF2);
         vm.expectRevert("You are not authorized");
         vault.releaseFunds(address(nftContract));
+        vm.expectRevert("You are not authorized");
+        vault.removeCampaign(address(nftContract));
         vm.expectRevert("You are not authorized");
         vault.removeCampaign(address(nftContract));
         vm.expectRevert("You are not authorized");

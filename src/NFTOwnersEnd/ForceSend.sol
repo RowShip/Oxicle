@@ -16,7 +16,6 @@ contract ForceSend{
     IVaultInterface public vaultContract;
     IERC20 public USDCContract;
 
-
     constructor(address _vaultAddress) {
         vaultAddress = _vaultAddress;
         vaultContract = IVaultInterface(vaultAddress);
@@ -24,7 +23,8 @@ contract ForceSend{
     }
 
     modifier sendToVault(uint256 _amount){
-        USDCContract.transferFrom(msg.sender, vaultAddress, _amount);
+        bool sent = USDCContract.transferFrom(msg.sender, vaultAddress, _amount);
+        require(sent, "Transfer Unsuccessful. Transaction reverted");
         vaultContract.supplyFundsToCampaign(_amount);
         vaultContract.mintGovernanceTokens(msg.sender, _amount);
         _;
