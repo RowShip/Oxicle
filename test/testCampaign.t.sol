@@ -228,5 +228,118 @@ contract TestCampaign is Helpers {
         assertEq(
             vault.getCampaign(address(nftContract)).currentStage, 4
         );
+
+    }
+
+    function testReleaseFundsIfNoFunds(Vault.govTokenContractArguments memory _govTokenContractArguments) public{
+        address[] memory proposers = new address[](1);
+        address[] memory executors = new address[](1);
+        Vault.timelockContractArguments memory newStruct = Vault.timelockContractArguments(2, proposers, executors);
+
+        uint256[] memory fundsPerStage = new uint256[](3);
+        fundsPerStage[0] = 99900000;
+        fundsPerStage[1] = 99900000;
+        fundsPerStage[2] = 99900000;
+
+        vm.startPrank(0x8C8D7C46219D9205f056f28fee5950aD564d7465);
+        NFTContract nftContract = new NFTContract(address(vault));
+
+        address[] memory signatories = new address[](2);
+        signatories[0] = 0x5B38Da6a701c568545dCfcB03FcB875f56beddC4;
+        signatories[1] = 0xAb8483F64d9C6d1EcF9b849Ae677dD3315835cb2;
+        Vault.multisigContractArguments memory _multisig = Vault
+            .multisigContractArguments(signatories, 1);
+        
+        Vault.governorContractArguments memory _governorContractArguments = Vault.governorContractArguments(
+                5,
+                10,
+                10
+        );
+
+        address campaignAddress = vault.setupCampaign(
+            address(nftContract),
+            newStruct,
+            _governorContractArguments,
+            _govTokenContractArguments,
+            3,
+            fundsPerStage,
+            10000000,
+            _multisig
+        );
+
+        assertEq(
+            address(vault.getCampaign(address(nftContract)).campaign),
+            campaignAddress
+        );
+        vm.stopPrank();
+
+        CampaignFactory campaignFactory = CampaignFactory(
+            payable(campaignAddress)
+        );
+        vm.startPrank(0x1B7BAa734C00298b9429b518D621753Bb0f6efF2);
+        USDCContract.approve(address(nftContract), 20000000);
+        nftContract.safeMint();
+        campaignFactory.delegate(0x1B7BAa734C00298b9429b518D621753Bb0f6efF2);
+        vm.stopPrank();
+        vm.startPrank(0x89dF4F398563bF6A64a4D24dFE4be00b20b563Ae);
+        USDCContract.approve(address(nftContract), 20000000);
+        nftContract.safeMint();
+        campaignFactory.delegate(0x89dF4F398563bF6A64a4D24dFE4be00b20b563Ae);
+        vm.stopPrank();
+
+        string memory proposalDesc = "Something related to proposal";
+        
+        bytes[] memory encodedFunctionCall = new bytes[](1);
+        encodedFunctionCall[0] = abi.encodeWithSignature(
+            "releaseFunds(address)",
+            [address(nftContract)]
+        );
+        
+
+        (
+            uint256 proposalId,
+            address[] memory vaultAddress,
+            uint256[] memory calldataValue
+        ) = createProposal(
+                0x1B7BAa734C00298b9429b518D621753Bb0f6efF2,
+                vault,
+                campaignFactory,
+                encodedFunctionCall,
+                proposalDesc
+            );
+
+        vm.roll(block.number + 11);
+
+        vm.prank(0x1B7BAa734C00298b9429b518D621753Bb0f6efF2);
+        campaignFactory.castVote(proposalId, 1);
+        vm.prank(0x89dF4F398563bF6A64a4D24dFE4be00b20b563Ae);
+        campaignFactory.castVote(proposalId, 1);
+
+        vm.roll(block.number + 11);
+
+        
+
+        vm.prank(0x1B7BAa734C00298b9429b518D621753Bb0f6efF2);
+        bytes32 descriptionHash = keccak256(abi.encodePacked(proposalDesc));
+        campaignFactory.queue(
+            vaultAddress,
+            calldataValue,
+            encodedFunctionCall,
+            descriptionHash
+        );
+        vm.warp(block.timestamp + 3);
+        assertEq(uint256(campaignFactory.state(proposalId)), 5);
+
+        vm.expectRevert();
+        campaignFactory.execute(
+            vaultAddress,
+            calldataValue,
+            encodedFunctionCall,
+            descriptionHash
+        );
+        vm.stopPrank();
+
+        assertEq(vault.getCampaign(address(nftContract)).currentStage, 1);
+        assertEq(vault.getCampaign(address(nftContract)).currentFunds, 40000000);
     }
 }

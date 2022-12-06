@@ -42,8 +42,8 @@ contract Vault {
     mapping(address => bool) public timelocks;
 
     // This mapping is to track who all have claimed their tokens back after the campaign removal
-    // The mapping is from - whom(address) => nftcontract address => true/false
-    mapping(address => mapping(address => bool)) public fundsClaimedAfterCampaignRemoval;
+    // The mapping is from - tokenId => nftcontract address => true/false
+    mapping(uint256 => mapping(address => bool)) public fundsClaimedAfterCampaignRemoval;
 
     //for Gnosis
     address public immutable masterCopyAddress;
@@ -90,8 +90,9 @@ contract Vault {
         uint256 _totalStages,
         uint256[] calldata _fundsPerStage,
         uint256 _totalFundsRequired,
-        multisigContractArguments calldata _multisig
+        multisigContractArguments calldata _multisigContractArguments
     ) external returns (address) {
+        require(_nftContractAddress != allCampaigns[_nftContractAddress].nftContractAddress, "Given Nft contract already uses this protocol");
         require(
             _fundsPerStage.length == _totalStages,
             "Error! FundsPerStage not matching the no of stages"
@@ -100,8 +101,8 @@ contract Vault {
             _totalStages > 0 && _totalFundsRequired > 0,
             "totalStages or TotalFundsRequired cannot be 0"
         );
-        require(_multisig._signatories.length > 1 && _multisig._quorum > 0, "Wrong signatories or Quorum given");
-        // TODO: Need to check if _nftContractAddress has implemented the sendToVault modifier
+        require(_multisigContractArguments._signatories.length > 1 && _multisigContractArguments._quorum > 0, "Wrong number of signatories or Quorum given");
+        // TODO: Need to check if _nftContractAddress has implemented the sendToVault modifier and if the nftContract does not have any malicious code. 
 
         CampaignFactory newCampaign = new CampaignFactory(
             _nftContractAddress,
@@ -117,8 +118,8 @@ contract Vault {
         //creating multisig
         bytes memory initializer = abi.encodeWithSignature(
             "setup(address[],uint256,address,bytes,address,address,uint256,address)",
-            _multisig._signatories,
-            _multisig._quorum,
+            _multisigContractArguments._signatories,
+            _multisigContractArguments._quorum,
             address(0x0),
             new bytes(0),
             address(0x0),
@@ -182,15 +183,15 @@ contract Vault {
     function releaseFunds(address _nftContractAddress) external {
         require(timelocks[msg.sender] == true, "You are not authorized");
         Campaign memory thisCampaign = allCampaigns[_nftContractAddress];
-        require(thisCampaign.currentStage <= thisCampaign.currentStage, "The Campaign is Over");
+        require(thisCampaign.currentStage <= thisCampaign.totalStages, "The Campaign is Over");
         uint256 fundsForThisStage = thisCampaign.fundsPerStage[thisCampaign.currentStage - 1];
         allCampaigns[_nftContractAddress].currentFunds -= fundsForThisStage;
+        allCampaigns[_nftContractAddress].currentStage++;
         bool sent = USDCContract.transfer(
             thisCampaign.multisig,
             fundsForThisStage
         );
         require(sent, "Transfer Unsuccessful");
-        allCampaigns[_nftContractAddress].currentStage++;
     }
 
     function removeCampaign(address _nftContractAddress) external {
@@ -199,32 +200,26 @@ contract Vault {
         allCampaigns[_nftContractAddress].campaignRemoved = true;
     }
 
-    //to withdraw funds when the campaign is removed
-    function withdrawFundsAfterCampaignRemoval(address _nftContractAddress)
+    // to withdraw funds when the campaign is removed
+    function withdrawFundsAfterCampaignRemoval(address _nftContractAddress, uint256 _tokenId)
         external
     {
         IERC721 nftContract = IERC721(_nftContractAddress);
-        require(
-            nftContract.balanceOf(msg.sender) > 0,
-            "You are not Authorized"
-        );
+        require(nftContract.ownerOf(_tokenId) == msg.sender, "You are not Authorized");
         require(
             allCampaigns[_nftContractAddress].campaignRemoved == true,
             "the campaign is not removed yet"
         );
         require(
-            fundsClaimedAfterCampaignRemoval[msg.sender][_nftContractAddress] ==
+            fundsClaimedAfterCampaignRemoval[_tokenId][_nftContractAddress] ==
                 false,
             "You have already claimed once"
         );
-        fundsClaimedAfterCampaignRemoval[msg.sender][
+        fundsClaimedAfterCampaignRemoval[_tokenId][
             _nftContractAddress
         ] = true;
-        uint256 totalNftsOwnedByUser = nftContract.balanceOf(msg.sender);
-        uint256 totalAmountInUSDC = allCampaigns[_nftContractAddress]
-            .currentFunds;
-        uint256 withdrawAmount = (totalAmountInUSDC * totalNftsOwnedByUser) /
-            allCampaigns[_nftContractAddress].nftsMinted;
+        uint256 totalAmountInUSDC = allCampaigns[_nftContractAddress].currentFunds;
+        uint256 withdrawAmount = totalAmountInUSDC/allCampaigns[_nftContractAddress].nftsMinted;
         bool sent = USDCContract.transfer(msg.sender, withdrawAmount);
         require(sent, "Transfer Unsuccessful. Transaction reverted");
     }
